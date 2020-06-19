@@ -1,0 +1,431 @@
+//error message
+function error_message(form,response,type){
+    if(!response.length) return;
+    var html = '';
+    for(var i = 0; i < response.length; i++){
+        if(type == 'tooltip') html+= response[i];
+        else html+= '<li>'+response[i]+'</li>';
+    }
+    if(html){
+        if(type == 'tooltip'){
+            var m = '<div class="error-tooltip">'+html+'<span></span></div>';
+            form.after(m);
+        } else {
+            var m = '<div class="error-message">'+
+                '<div class="title">'+
+                    '<svg viewBox="0 0 65 65"><g><g><path fill="#f2206c" d="M32.5,0C14.58,0,0,14.579,0,32.5S14.58,65,32.5,65S65,50.421,65,32.5S50.42,0,32.5,0z M32.5,61C16.785,61,4,48.215,4,32.5 S16.785,4,32.5,4S61,16.785,61,32.5S48.215,61,32.5,61z"></path><circle fill="#f2206c" cx="33.018" cy="19.541" r="3.345"></circle><path fill="#f2206c" d="M32.137,28.342c-1.104,0-2,0.896-2,2v17c0,1.104,0.896,2,2,2s2-0.896,2-2v-17C34.137,29.237,33.241,28.342,32.137,28.342z"></path></g></g></svg>'+
+                    mar.error_data+
+                '</div>'+
+                '<ul>'+html+'</ul>'+
+            '</div>';
+            form.after(m);
+        }
+    }
+}
+
+jQuery(function($){
+    "use strict";
+
+    //format phone
+    $('input[name*="phone"]').on('focus', function(){
+        $(this).inputmask({"mask": "+380 (99) 999 99 99"});
+    });
+
+    $(document).on('blur', 'input[name*="phone"]', function(){
+        if(!$(this).val()) $(this).inputmask('remove');
+    });
+
+    //Add to cart
+    $(document).on('click', '.add-product', function(){
+        var button = $(this),
+            button_cart = button.closest('.menu-item').find('.cart-button');
+
+        if(button.hasClass('active') || $('body').hasClass('is_ajax')) return false;
+
+        button_cart.addClass('active');
+        button.addClass('active');
+        $('body').addClass('is_ajax');
+        $.post( ajaxurl, {
+            'action' : 'add_item_to_cart',
+            id : button.attr('data-id')
+        })
+        .done(function(response){
+            var r = $.parseJSON(response);
+            if(r.success){
+                $('.popup-cart-ajax').html(r.html);
+                _functions.openPopup($('.popup-content[data-rel="1"]'));
+                if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                else $('a.cart span.woocommerce-Price-amount').append(r.count);
+            } else {
+                alert(r.message);
+            }
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+            button_cart.removeClass('active');
+        })
+        .fail(function(response){
+            alert(mar.error_server);
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+            button_cart.removeClass('active');
+        });
+    });
+
+    //Checkout delete product
+    $(document).on('click', '.checkout-info .delete-product', function() {
+        var button = $(this);
+
+        if(button.hasClass('active') || $('body').hasClass('is_ajax')) return false;
+
+        button.addClass('active');
+        $('body').addClass('is_ajax');
+        $.post( ajaxurl, {
+            'action' : 'remove_item_from_cart',
+            cart_item_key : button.attr('data-cart-item-key')
+        })
+        .done(function(response){
+            var r = $.parseJSON(response);
+            if(r.success){
+                if (r.emptyCart) {
+                    $('.checkout-row').replaceWith(r.emptyCartHtml);
+                }
+                button.closest('.table-row').remove();
+                if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                if($('.general-price .price span.woocommerce-Price-amount').length) $('.general-price .price span.woocommerce-Price-amount').replaceWith(r.count);
+            } else {
+                alert(r.message);
+            }
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        })
+        .fail(function(response){
+            alert(mar.error_server);
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        });
+    });
+
+
+    //Plus one product to the cart
+    $(document).on('click', '.product-button.more-product.plus-one-product', function() {
+        var button = $(this).closest('.product-count'),
+            quantity = parseInt($(this).closest('.product-count').find('.count').val()),
+            pricePerOne = button.attr('data-price-per-one');
+
+        if(button.hasClass('active') || $('body').hasClass('is_ajax')) return false;
+
+        var modifiers = button.closest('.table-row').find('.hidden.product-items.modifiers'),
+        data = {};
+
+        modifiers.each( function( index, el ) {
+            data[index] = {
+                id : $(this).find('.product-count').attr('data-modifier-id'),
+                quantity : $(this).find('.product-count').attr('data-quantity'),
+                name : $(this).find('.product-count').attr('data-name'),
+                price : $(this).find('.product-count').attr('data-price-per-one')
+            }
+        });
+
+        button.addClass('active');
+        $('body').addClass('is_ajax');
+        $.post( ajaxurl, {
+            'action' : 'add_item_to_cart',
+            id : button.attr('data-id'),
+            cart_item_data : data,
+            cart_item_key : button.attr('data-cart-item-key'),
+            quantity : quantity
+        })
+        .done(function(response){
+            var r = $.parseJSON(response);
+            if(r.success){
+                if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                if($('.general-price .price span.woocommerce-Price-amount').length) $('.general-price .price span.woocommerce-Price-amount').replaceWith(r.count);
+                button.find('.count').val(quantity+1);
+
+                if(pricePerOne && quantity) {
+                    button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (quantity+1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+                    button.closest('.table-row').find('.woocommerce-Price-amount').html(pricePerOne * (quantity+1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+                }
+                if (r.key) {
+                    button.attr('data-cart-item-key', r.key);
+                }
+            } else {
+                alert(r.message);
+            }
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        })
+        .fail(function(response){
+            alert(mar.error_server);
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        });
+    });
+
+    //Minus one product to the cart
+    $(document).on('click', '.product-button.less-product.minus-one-product', function() {
+        var button = $(this).closest('.product-count'),
+            quantity = button.find('.count').val(),
+            pricePerOne = button.attr('data-price-per-one');
+
+        if(button.hasClass('active') || $('body').hasClass('is_ajax')) return false;
+        if($(this).hasClass('checkout-min-product') && quantity == 1 ) return false;
+
+        if(quantity > 0){
+            button.addClass('active');
+            $('body').addClass('is_ajax');
+            $.post( ajaxurl, {
+                'action' : 'minus_one_product_from_cart',
+                cart_item_key : button.attr('data-cart-item-key'),
+                quantity : quantity - 1
+            })
+            .done(function(response){
+                var r = $.parseJSON(response);
+                if(r.success){
+                    if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                    if($('.general-price .price span.woocommerce-Price-amount').length) $('.general-price .price span.woocommerce-Price-amount').replaceWith(r.count);
+                    button.find('input').val(r.productCount);
+
+                    if(pricePerOne && r.productCount) {
+                        if(r.productCount > 0) {
+                            button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (r.productCount)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+                        }
+                        button.closest('.table-row').find('.woocommerce-Price-amount').html(pricePerOne * (quantity-1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+                    }
+                } else {
+                    alert(r.message);
+                }
+                button.removeClass('active');
+                $('body').removeClass('is_ajax');
+            })
+            .fail(function(response){
+                alert(mar.error_server);
+                button.removeClass('active');
+                $('body').removeClass('is_ajax');
+            });
+        } else {
+            return false;
+        }
+    });
+
+    //Plus One Main Product in the popup
+    $(document).on('click', '.product-button.more-product.plus-one-cart-product', function() {
+
+        $('.update-cart').show();
+
+        var button = $(this).closest('.product-count');
+        var productValue = button.find('input');
+        var currentVal = parseInt(productValue.val());
+        //var pricePerOne = button.attr('data-price-per-one');
+
+        if (!isNaN(currentVal)) {
+            productValue.val(currentVal + 1);
+            //button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (currentVal + 1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+        }
+
+    });
+
+    //Minus One Main Product in the popup
+    $(document).on('click', '.product-button.less-product.minus-one-cart-product', function() {
+
+        $('.update-cart').show();
+
+        var button = $(this).closest('.product-count');
+        var productValue = button.find('input');
+        var currentVal = parseInt(productValue.val());
+        //var pricePerOne = button.attr('data-price-per-one');
+
+        if (currentVal > 1) {
+            productValue.val(currentVal - 1);
+            //button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (currentVal - 1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+        }
+
+    });
+
+
+    //Plus One Modifier
+    $(document).on('click', '.product-button.more-product.plus-one-modifier', function() {
+
+        $('.update-cart').show();
+
+        var button = $(this).closest('.product-count');
+        var productValue = button.find('input');
+        var currentVal = parseInt(productValue.val());
+        var pricePerOne = button.attr('data-price-per-one');
+
+        if (!isNaN(currentVal)) {
+            productValue.val(currentVal + 1);
+            button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (currentVal + 1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+        }
+
+    });
+
+    //Minus One Modifier
+    $(document).on('click', '.product-button.less-product.minus-one-modifier', function() {
+
+        $('.update-cart').show();
+
+        var button = $(this).closest('.product-count');
+        var productValue = button.find('input');
+        var currentVal = parseInt(productValue.val());
+        var pricePerOne = button.attr('data-price-per-one');
+
+        if (currentVal > 0) {
+            productValue.val(currentVal - 1);
+            if (currentVal - 1 != 0) {
+                button.closest('.product-items').find('.woocommerce-Price-amount').html(pricePerOne * (currentVal - 1)+'&nbsp;<span class="woocommerce-Price-currencySymbol">грн.</span>');
+            }
+        }
+
+    });
+
+    //Update cart
+    $(document).on('click', '.update-cart', function(e) {
+        e.preventDefault();
+        var button = $(this);
+
+        if(button.hasClass('active') || $('body').hasClass('is_ajax')) return false;
+
+        var modifiers = $('.product-items.modifiers'),
+            data = {};
+
+        modifiers.each( function( index, el ) {
+            data[index] = {
+                id : $(this).find('.product-count').attr('data-modifier-id'),
+                quantity : $(this).find('input.count').val(),
+                name : $(this).find('.title').text(),
+                price : $(this).find('.product-count').attr('data-price-per-one')
+            }
+        });
+
+        var mainProductQuantity = $('.popup-title').find('input.count').val();
+
+        button.addClass('active');
+        $('body').addClass('is_ajax');
+        $.post( ajaxurl, {
+            'action' : 'update_cart',
+            id : button.attr('data-id'),
+            cart_item_data : data,
+            cart_item_key : button.attr('data-cart-item-key'),
+            cart_main_product_quantity : mainProductQuantity
+        })
+        .done(function(response){
+            var r = $.parseJSON(response);
+            if(r.success){
+                if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                else $('a.cart span.woocommerce-Price-amount').append(r.count);
+                if (r.key) {
+                    button.attr('data-cart-item-key', r.key);
+                }
+                $('.update-cart').hide();
+            } else {
+                alert(r.message);
+            }
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        })
+        .fail(function(response){
+            alert(mar.error_server);
+            button.removeClass('active');
+            $('body').removeClass('is_ajax');
+        });
+
+    });
+
+    //Create Order
+    $('#form-checkout').on('submit', function(e){
+        e.preventDefault();
+        var form = $(this),
+            _is_error = false,
+            errors = [];
+
+        if(form.hasClass('active')) return false;
+
+        form.addClass('active');
+        form.find('.input-not-valid').removeClass('input-not-valid');
+        form.parent().find('.error-message').remove();
+
+        form.find('.input-item').each(function(){
+            var thisEl  = $(this),
+                thisVal = $.trim(thisEl.val()),
+                label = thisEl.attr('placeholder');
+            label = (label ? $.trim(label.replace('*','')) : '');
+            if( thisEl.attr('data-required') && !thisVal ){
+                errors.push('<b>'+label+':</b> '+mar.error_empty_field);
+                thisEl.addClass('input-not-valid');
+                _is_error = true;
+            } else if( thisEl.attr('name') == 'phone' ){
+                if( Inputmask.isValid(thisVal, { alias: "+380 (99) 999 99 99"}) == false ){
+                    errors.push('<b>'+label+':</b> '+mar.error_invalid_phone);
+                    thisEl.addClass('input-not-valid');
+                    _is_error = true;
+                } else {
+                    thisEl.removeClass('input-not-valid');
+                }
+            }
+        });
+
+        if(_is_error){
+            error_message(form,errors,'message');
+            form.removeClass('active');
+            return false;
+        }
+
+        var data = form.serialize();
+
+        $.post( ajaxurl, {
+            'action' : 'create_order',
+            nonce    : form.find('#form-checkout-nonce').val(),
+            formData : data
+        })
+        .done(function(response){
+            var r = $.parseJSON(response);
+            console.log(r);
+            if(r.success){
+                if (r.emptyCart) {
+                    $('.checkout-row').replaceWith(r.emptyCartHtml);
+                }
+                if($('a.cart span.woocommerce-Price-amount').length) $('a.cart span.woocommerce-Price-amount').replaceWith(r.count);
+                else $('a.cart span.woocommerce-Price-amount').append(r.count);
+                form.trigger('reset');
+                _functions.openPopup($('.popup-content[data-rel="2"]'));
+                if(r.liqpay){
+                    $('.popup-content[data-rel="2"] .form').html(r.liqpay);
+                    $('.popup-content[data-rel="2"] .form input').trigger('click');
+                }
+            } else {
+                alert(r.message);
+            }
+            form.removeClass('active');
+        })
+        .fail(function(response){
+            alert(mar.error_server);
+            button.removeClass('active');
+        });
+    });
+
+
+    // TripAdvisor popup
+    function setCookie(key, value) {
+        var expires = new Date();
+        expires.setTime(expires.getTime() + (1 * 24 * 60 * 60 * 1000));
+        document.cookie = key + '=' + value + ';expires=' + expires.toUTCString();
+    }
+
+    function getCookie(key) {
+        var keyValue = document.cookie.match('(^|;) ?' + key + '=([^;]*)(;|$)');
+        return keyValue ? keyValue[2] : null;
+    }
+
+    $(window).on('load', function() {
+        var tripAdvisor = getCookie('tripAdvisor');
+        if (tripAdvisor !== '1') {
+            _functions.openPopup($('.popup-content[data-rel="3"]'));
+        }
+    });
+
+    $('#tripAdvisorBlock .button-close').on('click', function(e) {
+        setCookie('tripAdvisor', '1');
+    });
+
+});
